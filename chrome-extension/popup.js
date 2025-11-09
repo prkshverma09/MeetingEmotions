@@ -5,7 +5,7 @@ const statusEl = document.getElementById("status");
 const resultEl = document.getElementById("result");
 const apiUrlEl = document.getElementById("apiUrl");
 const autoModeEl = document.getElementById("autoMode");
-const DEFAULT_INTERVAL_MS = 2500;
+const DEFAULT_INTERVAL_MS = 2000;
 
 init();
 
