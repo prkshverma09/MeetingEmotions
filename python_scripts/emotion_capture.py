@@ -1,148 +1,123 @@
 import cv2
-import mss
 import numpy as np
-import os
-from datetime import datetime
-from PIL import Image
+from typing import Optional, Union
+from PIL import Image, ImageOps
 
-# Try to import transformers for Hugging Face emotion detection
+# Initialize emotion classifier (Hugging Face) if available
 EMOTION_DETECTOR_AVAILABLE = False
 emotion_pipeline = None
 
 try:
     from transformers import pipeline
-    print("Loading emotion detection model from Hugging Face...")
-    # Using a vision-language model for emotion detection
-    # This model can analyze facial expressions
+    # Prefer a small CPU-friendly model for serverless cold starts
     emotion_pipeline = pipeline(
         "image-classification",
         model="trpakov/vit-face-expression",
-        device=-1  # Use CPU (-1) or GPU (0, 1, etc.)
+        device=-1  # CPU by default; change to 0 if deploying with GPU
     )
     EMOTION_DETECTOR_AVAILABLE = True
-    print("Emotion detection model loaded successfully!")
-except ImportError:
-    print("Warning: transformers library not available. Install with: pip install transformers torch pillow")
-    print("Emotion detection will be skipped.")
-except Exception as e:
-    print(f"Warning: Could not load emotion detection model: {e}")
-    print("Trying alternative model...")
+except Exception:
+    # Best-effort fallback: try an alternative model
     try:
-        # Try a simpler alternative model
-        from transformers import pipeline
-        emotion_pipeline = pipeline(
+        from transformers import pipeline as _pipeline_alt
+        emotion_pipeline = _pipeline_alt(
             "image-classification",
             model="dima806/facial_emotions_image_detection",
             device=-1
         )
         EMOTION_DETECTOR_AVAILABLE = True
-        print("Alternative emotion detection model loaded successfully!")
-    except Exception as e2:
-        print(f"Warning: Could not load alternative model: {e2}")
-        print("Emotion detection will be skipped.")
+    except Exception:
+        EMOTION_DETECTOR_AVAILABLE = False
 
-# --- DO THIS ONCE ---
-# Helper function to detect emotion using Hugging Face model
-def detect_emotion_with_hf(face_image):
-    """Detect emotion in face image using Hugging Face model"""
+# Load OpenCV's Haar cascade face detector once
+face_cascade = cv2.CascadeClassifier(
+    cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
+)
+
+
+def _to_bgr_ndarray(image: Union[np.ndarray, Image.Image, bytes, str]) -> Optional[np.ndarray]:
+    """
+    Normalize various image inputs to an OpenCV BGR ndarray.
+    Accepts:
+      - numpy ndarray (BGR, BGRA, RGB, RGBA, or grayscale)
+      - PIL.Image.Image
+      - file path (str) to an image
+      - raw bytes of an encoded image
+    Returns:
+      - BGR ndarray or None if conversion fails
+    """
+    try:
+        if isinstance(image, np.ndarray):
+            arr = image
+        elif isinstance(image, Image.Image):
+            arr = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
+        elif isinstance(image, (bytes, bytearray)):
+            data = np.frombuffer(image, dtype=np.uint8)
+            arr = cv2.imdecode(data, cv2.IMREAD_UNCHANGED)
+        elif isinstance(image, str):
+            arr = cv2.imread(image, cv2.IMREAD_UNCHANGED)
+        else:
+            return None
+
+        if arr is None:
+            return None
+
+        # Normalize channel format to BGR
+        if len(arr.shape) == 2:  # grayscale
+            return cv2.cvtColor(arr, cv2.COLOR_GRAY2BGR)
+        if arr.shape[2] == 4:  # BGRA or RGBA
+            # Heuristically assume OpenCV's imdecode/imread gives BGRA; convert to BGR
+            return cv2.cvtColor(arr, cv2.COLOR_BGRA2BGR)
+        if arr.shape[2] == 3:
+            # Could be RGB or BGR; if source was PIL we already converted to BGR
+            return arr
+        return None
+    except Exception:
+        return None
+
+
+def detect_face_emotion(image: Union[np.ndarray, Image.Image, bytes, str]) -> Optional[str]:
+    """
+    Detect the dominant face in the provided image and return its emotion label.
+
+    Parameters:
+      - image: numpy ndarray, PIL.Image, image file path (str), or encoded image bytes
+
+    Returns:
+      - Uppercased emotion label (e.g., "HAPPY", "SAD"), or None if undetected.
+
+    Notes for serverless environments (e.g., Vercel):
+      - Import time may initialize the model; consider keeping the module warm across invocations.
+      - Ensure OpenCV and model weights are available in the deployment package or layer.
+    """
+    bgr = _to_bgr_ndarray(image)
+    if bgr is None:
+        return None
+
+    # Detect faces
+    gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
+    faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=4)
+    if len(faces) == 0:
+        return None
+
+    # Choose largest face
+    x, y, w, h = max(faces, key=lambda rect: rect[2] * rect[3])
+    face_bgr = bgr[y : y + h, x : x + w]
+
     if not EMOTION_DETECTOR_AVAILABLE or emotion_pipeline is None:
         return None
 
     try:
-        # Convert BGR to RGB for PIL
-        face_rgb = cv2.cvtColor(face_image, cv2.COLOR_BGR2RGB)
-        # Convert numpy array to PIL Image
-        pil_image = Image.fromarray(face_rgb)
+        # Convert to PIL RGB for HF pipeline
+        face_rgb = cv2.cvtColor(face_bgr, cv2.COLOR_BGR2RGB)
+        pil_img = Image.fromarray(face_rgb)
+        # (Optional) basic normalization to reduce inference variance
+        pil_img = ImageOps.exif_transpose(pil_img)
 
-        # Run emotion detection
-        results = emotion_pipeline(pil_image)
-
+        results = emotion_pipeline(pil_img)
         if results and len(results) > 0:
-            # Get the top emotion prediction
-            top_result = results[0]
-            emotion_label = top_result.get('label', '')
-            # Return the emotion (remove any prefixes/suffixes if needed)
-            return emotion_label.upper()
-
+            label = results[0].get("label", "")
+            return label.upper() if label else None
         return None
-    except Exception as e:
-        # If detection fails, return None
+    except Exception:
         return None
-
-# 2. Load OpenCV's fast face detector
-face_cascade = cv2.CascadeClassifier(
-    cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
-)
-# --------------------
-
-# 3. Ensure data folder exists (at project root)
-script_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(script_dir)
-data_folder = os.path.join(project_root, "data")
-os.makedirs(data_folder, exist_ok=True)
-
-# 4. Start the screen capture loop
-with mss.mss() as sct:
-    # Define the monitor to capture
-    monitor = sct.monitors[1]
-
-    frame_count = 0
-    while "Running":
-        # Grab the screen
-        sct_img = sct.grab(monitor)
-        frame = np.array(sct_img)
-
-        # Convert BGRA to BGR for processing
-        frame_bgr = cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
-
-        # Convert to grayscale for the face detector
-        gray_frame = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
-
-        # Detect all faces. Returns a list of (x, y, w, h)
-        faces = face_cascade.detectMultiScale(gray_frame, 1.1, 4)
-
-        # Find the largest face
-        largest_face_coords = None
-        max_area = 0
-        for (x, y, w, h) in faces:
-            area = w * h
-            if area > max_area:
-                max_area = area
-                largest_face_coords = (x, y, w, h)
-
-        # Emotion detection for the largest face using local vLLM
-        detected_emotion = None
-        if largest_face_coords:
-            # Unpack the coordinates
-            x, y, w, h = largest_face_coords
-
-            # Crop the face from the original color frame (BGR)
-            speaker_crop = frame_bgr[y : y + h, x : x + w]
-
-            # Run Emotion Analysis using Hugging Face model
-            detected_emotion = detect_emotion_with_hf(speaker_crop)
-
-            # Print face detected message with emotion
-            if detected_emotion:
-                print(f"face detected with emotion: {detected_emotion.lower()}")
-            else:
-                print("face detected with emotion: unknown")
-
-            # Draw a rectangle around the face
-            cv2.rectangle(frame_bgr, (x, y), (x + w, y + h), (0, 255, 0), 2)
-
-            # Add emotion text above the face if detected
-            if detected_emotion:
-                cv2.putText(frame_bgr, f'Emotion: {detected_emotion}', (x, y - 10),
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-
-        # Generate unique filename with timestamp
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-        filename = os.path.join(data_folder, f"screen_capture_{timestamp}.png")
-
-        # Save the captured screen
-        cv2.imwrite(filename, frame_bgr)
-        frame_count += 1
-
-        # (All other steps will go inside this loop)
-        # Note: Press Ctrl+C to stop the script

@@ -1,0 +1,62 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Meeting Emotions</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+        min-width: 260px;
+        padding: 12px;
+      }
+      .row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      button {
+        appearance: none;
+        border: none;
+        background: #0b5fff;
+        color: white;
+        padding: 8px 12px;
+        border-radius: 6px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      button:disabled {
+        opacity: 0.6;
+        cursor: default;
+      }
+      .muted {
+        color: #666;
+        font-size: 12px;
+      }
+      .result {
+        margin-top: 10px;
+        font-weight: 600;
+      }
+      a {
+        color: #0b5fff;
+        text-decoration: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="row" style="justify-content: space-between; margin-bottom: 8px;">
+      <div>
+        <div style="font-weight: 700;">Meeting Emotions</div>
+        <div id="apiUrl" class="muted"></div>
+      </div>
+      <a href="options.html" target="_blank" rel="noreferrer">Options</a>
+    </div>
+    <button id="analyzeBtn">Analyze Current Tab</button>
+    <div id="status" class="muted" style="margin-top:6px;"></div>
+    <div id="result" class="result"></div>
+    <script src="popup.js"></script>
+  </body>
+ </html>
+
+

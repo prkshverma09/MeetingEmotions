@@ -1,0 +1,61 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Meeting Emotions Options</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+        max-width: 720px;
+        padding: 16px;
+      }
+      label {
+        display: block;
+        font-weight: 600;
+        margin-bottom: 6px;
+      }
+      input[type="text"] {
+        width: 100%;
+        padding: 10px 12px;
+        border: 1px solid #ccc;
+        border-radius: 6px;
+        font-size: 14px;
+      }
+      button {
+        margin-top: 12px;
+        appearance: none;
+        border: none;
+        background: #0b5fff;
+        color: white;
+        padding: 8px 12px;
+        border-radius: 6px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .muted {
+        color: #666;
+        font-size: 12px;
+      }
+      .row {
+        margin-top: 16px;
+      }
+    </style>
+  </head>
+  <body>
+    <h2>Meeting Emotions Options</h2>
+
+    <div class="row">
+      <label for="apiUrl">API URL</label>
+      <input id="apiUrl" type="text" placeholder="http://127.0.0.1:8000/detect/file" />
+      <div class="muted">This endpoint should accept a multipart form field named "image".</div>
+      <button id="saveBtn">Save</button>
+      <div id="status" class="muted"></div>
+    </div>
+
+    <script src="options.js"></script>
+  </body>
+ </html>
+
+

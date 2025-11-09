@@ -26,3 +26,6 @@ tqdm==4.67.1
 transformers==4.57.1
 typing_extensions==4.15.0
 urllib3==2.5.0
+fastapi==0.115.5
+uvicorn[standard]==0.32.0
+python-multipart==0.0.9
