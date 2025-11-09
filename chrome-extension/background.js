@@ -54,8 +54,13 @@ async function handleAnalyzeCurrentTab() {
   const json = await response.json();
   const emotion = json?.emotion || "unknown";
 
-  // Send to content script to overlay
-  await chrome.tabs.sendMessage(activeTab.id, { type: "SHOW_EMOTION", emotion });
+  // Ensure content script is present, then send to overlay
+  await ensureContentScriptInjected(activeTab.id);
+  try {
+    await chrome.tabs.sendMessage(activeTab.id, { type: "SHOW_EMOTION", emotion });
+  } catch (e) {
+    throw new Error("Could not show overlay on this page. Try a regular http(s) page.");
+  }
   return { emotion };
 }
 
@@ -78,6 +83,17 @@ async function getApiUrl() {
     return apiUrl || DEFAULT_API_URL;
   } catch {
     return DEFAULT_API_URL;
+  }
+}
+
+async function ensureContentScriptInjected(tabId) {
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      files: ["contentScript.js"]
+    });
+  } catch (e) {
+    // Ignore if injection isn't allowed or already present
   }
 }
 

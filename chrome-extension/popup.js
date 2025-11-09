@@ -4,6 +4,8 @@ const analyzeBtn = document.getElementById("analyzeBtn");
 const statusEl = document.getElementById("status");
 const resultEl = document.getElementById("result");
 const apiUrlEl = document.getElementById("apiUrl");
+const autoModeEl = document.getElementById("autoMode");
+const DEFAULT_INTERVAL_MS = 2500;
 
 init();
 
@@ -12,6 +14,8 @@ async function init() {
   apiUrlEl.textContent = `API: ${apiUrl}`;
   statusEl.textContent = "";
   resultEl.textContent = "";
+  const { autoMode = false } = await chrome.storage.sync.get({ autoMode: false });
+  autoModeEl.checked = Boolean(autoMode);
 }
 
 analyzeBtn.addEventListener("click", async () => {
@@ -33,6 +37,13 @@ analyzeBtn.addEventListener("click", async () => {
   } finally {
     analyzeBtn.disabled = false;
   }
+});
+
+autoModeEl.addEventListener("change", async (e) => {
+  const enabled = Boolean(e.target.checked);
+  await chrome.storage.sync.set({ autoMode: enabled, intervalMs: DEFAULT_INTERVAL_MS });
+  statusEl.textContent = enabled ? "Auto analyze enabled." : "Auto analyze disabled.";
+  setTimeout(() => (statusEl.textContent = ""), 1200);
 });
 
 function sendAnalyzeMessage() {
