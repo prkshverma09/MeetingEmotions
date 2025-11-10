@@ -1,0 +1,31 @@
+{
+  "manifest_version": 3,
+  "name": "Emotion Detector",
+  "version": "1.0",
+  "description": "Detect emotions in real-time from video meeting participants",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "tabs",
+    "webNavigation",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://meet.google.com/*",
+    "https://teams.microsoft.com/*",
+    "https://*.zoom.us/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Emotion Detector"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://meet.google.com/*", "https://teams.microsoft.com/*", "https://*.zoom.us/*"],
+      "js": ["content.js"]
+    }
+  ]
+}
